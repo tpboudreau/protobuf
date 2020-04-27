@@ -168,6 +168,8 @@ class PROTOC_EXPORT Generator : public CodeGenerator {
   mutable std::string file_descriptor_serialized_;
   mutable io::Printer* printer_;  // Set in Generate().  Under mutex_.
   mutable bool pure_python_workable_;
+  mutable bool import_from_package_ = false;
+  mutable std::string import_from_package_name_;
 
   GOOGLE_DISALLOW_EVIL_CONSTRUCTORS(Generator);
 };

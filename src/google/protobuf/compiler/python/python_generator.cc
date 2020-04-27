@@ -318,6 +318,9 @@ bool Generator::Generate(const FileDescriptor* file,
   for (int i = 0; i < options.size(); i++) {
     if (options[i].first == "cpp_generated_lib_linked") {
       cpp_generated_lib_linked = true;
+    } else if (options[i].first == "import_from_package") {
+      import_from_package_ = true;
+      import_from_package_name_ = (options[i].second.length() > 0 ? options[i].second : ".");
     } else {
       *error = "Unknown generator option: " + options[i].first;
       return false;
@@ -409,12 +412,24 @@ void Generator::PrintImports() const {
       int last_dot_pos = module_name.rfind('.');
       std::string import_statement;
       if (last_dot_pos == std::string::npos) {
-        // NOTE(petya): this is not tested as it would require a protocol buffer
-        // outside of any package, and I don't think that is easily achievable.
-        import_statement = "import " + module_name;
+        if (import_from_package_) {
+          import_statement = "from " + import_from_package_name_ +
+                             " import " + module_name;
+        } else {
+          // NOTE(petya): this is not tested as it would require a protocol buffer
+          // outside of any package, and I don't think that is easily achievable.
+          import_statement = "import " + module_name;
+        }
       } else {
-        import_statement = "from " + module_name.substr(0, last_dot_pos) +
-                           " import " + module_name.substr(last_dot_pos + 1);
+        if (import_from_package_) {
+          import_statement = "from " + import_from_package_name_ +
+                             (import_from_package_name_.back() == '.' ? "" : ".") +
+                             module_name.substr(0, last_dot_pos) + " import " +
+                             module_name.substr(last_dot_pos + 1);
+        } else {
+          import_statement = "from " + module_name.substr(0, last_dot_pos) +
+                             " import " + module_name.substr(last_dot_pos + 1);
+        }
       }
       printer_->Print("$statement$ as $alias$\n", "statement", import_statement,
                       "alias", module_alias);

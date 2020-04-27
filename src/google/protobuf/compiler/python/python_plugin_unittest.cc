@@ -155,6 +155,73 @@ TEST(PythonPluginTest, ImportTest) {
   EXPECT_TRUE(found_expected_import);
 }
 
+TEST(PythonPluginTest, ImportFromPackageTest) {
+  GOOGLE_CHECK_OK(File::SetContents(TestTempDir() + "/a.proto",
+                             "syntax = \"proto3\";\n"
+                             "import \"b.proto\";"
+                             "message A {\n"
+                             "  B b = 1;\n"
+                             "}\n",
+                             true));
+  GOOGLE_CHECK_OK(File::SetContents(TestTempDir() + "/b.proto",
+                             "syntax = \"proto3\";\n"
+                             "message B {}\n",
+                             true));
+
+  compiler::CommandLineInterface cli;
+  python::Generator python_generator;
+  cli.RegisterGenerator("--python_out", "--python_opt", &python_generator, "");
+  std::string proto_path = "--proto_path=" + TestTempDir();
+  std::string python_out = "--python_out=" + TestTempDir();
+
+  // Check that package name supplied with option is inserted into generated
+  // import statement
+  std::string absolute_python_opt = "--python_opt=import_from_package=omega";
+  const char* absolute_argv[] = {"protoc", proto_path.c_str(),
+                             python_out.c_str(), absolute_python_opt.c_str(),
+                             "a.proto"};
+  ASSERT_EQ(0, cli.Run(5, absolute_argv));
+  // Loop over the lines of the generated code and verify that we find
+  // a Python import statement with a 'from' clause containing an absolute
+  // package name.
+  std::string absolute_output;
+  GOOGLE_CHECK_OK(File::GetContents(TestTempDir() + "/a_pb2.py",
+                             &absolute_output, true));
+  std::vector<std::string> absolute_lines = Split(absolute_output, "\n");
+  std::string expected_absolute_import = "from omega import b_pb2";
+  bool found_expected_absolute_import = false;
+  for (int i = 0; i < absolute_lines.size(); ++i) {
+    if (absolute_lines[i].find(expected_absolute_import) != std::string::npos) {
+      found_expected_absolute_import = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_expected_absolute_import);
+
+  // Check that default package name is inserted into generated import statement
+  std::string relative_python_opt = "--python_opt=import_from_package";
+  const char* relative_argv[] = {"protoc", proto_path.c_str(),
+                             python_out.c_str(), relative_python_opt.c_str(),
+                             "a.proto"};
+  ASSERT_EQ(0, cli.Run(5, relative_argv));
+  // Loop over the lines of the generated code and verify that we find
+  // a Python import statement with a 'from' clause containing the default
+  // explicit relative package name '.'.
+  std::string relative_output;
+  GOOGLE_CHECK_OK(File::GetContents(TestTempDir() + "/a_pb2.py",
+                             &relative_output, true));
+  std::vector<std::string> relative_lines = Split(relative_output, "\n");
+  std::string expected_relative_import = "from . import b_pb2";
+  bool found_expected_relative_import = false;
+  for (int i = 0; i < relative_lines.size(); ++i) {
+    if (relative_lines[i].find(expected_relative_import) != std::string::npos) {
+      found_expected_relative_import = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_expected_relative_import);
+}
+
 }  // namespace
 }  // namespace python
 }  // namespace compiler
